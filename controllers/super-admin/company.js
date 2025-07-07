@@ -41,7 +41,8 @@ const encryptedPassword = encrypt(password);
       profileImage,
       category,
       aboutBusiness,
-      aboutProduct
+      aboutProduct,
+      isActive:false
   });
   return response.success("Company created successfully", user, res);
 });
@@ -113,7 +114,7 @@ exports.getAllCompany = asyncHandler(async (req,res) =>{
 exports.getAllOtherCompanies = asyncHandler(async (req, res) => {
   const loggedInId = req.user._id;
 
-  const companies = await Company.find({ _id: { $ne: loggedInId } });
+  const companies = await Company.find({ _id: { $ne: loggedInId },isActive: true });
 
   if (!companies || companies.length === 0) {
     return response.notFound("No other companies found", res);
@@ -123,16 +124,22 @@ exports.getAllOtherCompanies = asyncHandler(async (req, res) => {
 });
 
 
-exports.updateStatus = asyncHandler(async (req,res) => {
-  const {companyId} = req.params;
+exports.updateStatus = asyncHandler(async (req, res) => {
+  const { companyId } = req.params;
+
   const company = await Company.findById(companyId);
-  if (!company) return response.notFound(res);
-  
+  if (!company) return response.notFound(res, "Company not found.");
+
   company.isActive = !company.isActive;
   await company.save();
 
-  return response.success(`Company status updated to ${company.isActive ? 'Active' : 'Inactive'}`,company,res);
-}) 
+  return response.success(
+    `Company status updated to ${company.isActive ? 'Active' : 'Inactive'}`,
+    company,
+    res
+  );
+});
+ 
 
 exports.getDashboardCompany = asyncHandler(async (req, res) => {
   const totalCompanies = await Company.countDocuments();

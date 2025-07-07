@@ -11,21 +11,28 @@ exports.signInCompany = asyncHandler(async (req, res) => {
     return response.forbidden("All fields are required", res);
   }
 
-  let company = await models.company.findOne({ email }).lean();
+  const company = await models.company.findOne({ email }).lean();
+
   if (!company) {
     return response.success("Invalid credentials!", null, res);
   }
 
-  let encryptedPassword = company.password;
-  let plainTextPassword = decrypt(encryptedPassword);
+  if (!company.isActive) {
+    return response.forbidden("Your account is inactive. Please contact admin.", res);
+  }
+
+  const encryptedPassword = company.password;
+  const plainTextPassword = decrypt(encryptedPassword);
 
   if (plainTextPassword !== password) {
     return response.success("Invalid credentials!", null, res);
   }
+
   const token = helpers.generateToken({ id: String(company._id), type: "company" });
 
-  return response.success("Company login successfully!", {token,company}, res);
+  return response.success("Company login successfully!", { token, company }, res);
 });
+
 
 
 exports.verifyCompany = asyncHandler(async (req, res) => {
@@ -36,6 +43,9 @@ exports.verifyCompany = asyncHandler(async (req, res) => {
   if (!user) {
     return response.success("User not found!", null, res);
   }
+    if (!user.isActive) {
+      return response.forbidden("Your account is inactive. Please contact admin.", res);
+    }
   return response.success("User found!", user, res);
   } catch (error) {
     return response.forbidden("Invalid or expired token", res);

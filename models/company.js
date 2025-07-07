@@ -49,6 +49,10 @@ const companySchema = new mongoose.Schema({
     enum: ['Pure B2B', 'Pure B2C', 'B2B + B2C'],
     required: true
   },
+  isActive: {
+    type: Boolean,
+    default: false
+  },
   availableSlots: [{
     date: Date,
     startTime: String, // Format: "HH:MM"

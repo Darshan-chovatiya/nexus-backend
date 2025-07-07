@@ -10,5 +10,9 @@ module.exports = [
   {
     path: "/scan",
     file: require("./scan")
+  },
+  {
+    path: "/banner",
+    file: require("./banner")
   }
 ];

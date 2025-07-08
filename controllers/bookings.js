@@ -1,99 +1,150 @@
-
-const expressAsyncHandler = require('express-async-handler');
-const slot = require('../models/slot');
-const { company } = require('../models/zindex');
-
-// Set available time slots
-// router.post('/me/slots', auth, async (req, res) => {
-exports.setavailableSlots = expressAsyncHandler(async (req, res) => {
-  const { date } = req.body;
-  const companyId = req.user._id;
-
-  const user = await slot.findById(companyId);
-  if (!user) return res.status(404).json({ message: "Company not found" });
-
-  // Remove previous slots for this date
-  company.availableSlots = company.availableSlots.filter(
-    slot => slot.date.toISOString().split('T')[0] !== date
-  );
-
+const UserSlot = require('../models/users_slots');
+const PairSlot = require('../models/pair_slot');
+const asyncHandler = require("express-async-handler");
+function generateTimeSlots() {
   const start = 11 * 60;
   const end = 14 * 60;
+  const slots = [];
 
-  for (let mins = start; mins < end; mins += 10) {
-    const h1 = Math.floor(mins / 60);
-    const m1 = mins % 60;
-    const h2 = Math.floor((mins + 10) / 60);
-    const m2 = (mins + 10) % 60;
+  for (let i = start; i < end; i += 10) {
+    const h1 = String(Math.floor(i / 60)).padStart(2, '0');
+    const m1 = String(i % 60).padStart(2, '0');
+    const h2 = String(Math.floor((i + 10) / 60)).padStart(2, '0');
+    const m2 = String((i + 10) % 60).padStart(2, '0');
 
-    company.availableSlots.push({
-      date: new Date(date),
-      startTime: `${h1.toString().padStart(2, '0')}:${m1.toString().padStart(2, '0')}`,
-      endTime: `${h2.toString().padStart(2, '0')}:${m2.toString().padStart(2, '0')}`
-    });
+    slots.push({ startTime: `${h1}:${m1}`, endTime: `${h2}:${m2}` });
   }
 
-  await company.save();
-  res.json(company.availableSlots);
+  return slots;
+}
+
+// POST /admin/slots/create
+exports.createSlots = asyncHandler(async (req, res) => {
+  const { date } = req.body;
+
+  if (!date) {
+    return res.status(400).json({ error: "Date is required" });
+  }
+
+  // Delete existing slots for this date
+  await UserSlot.deleteOne({ date });
+
+  // Create 10-min slots from 11:00 to 14:00
+  const slots = generateTimeSlots();
+
+  const created = await UserSlot.create({ date, slots });
+  res.status(201).json({ message: "Global slots created", data: created });
 });
 
+// POST /bookings/pair-slots/book
+exports.bookPairSlot = asyncHandler(async (req, res) => {
+  const { date, slotId, withUserId } = req.body;
+  const currentUserId = req.user._id;
 
-
-// Book a slot
-// router.post('/:userId/slots/:slotId', auth, async (req, res) => {
-exports.bookslot = expressAsyncHandler(async (req, res) => {
-  const { userId, slotId } = req.params;
-  const visitorAId = req.user._id;
-
-  const targetUser = await slot.findById(userId);
-  if (!targetUser) return res.status(404).json({ message: "User not found" });
-
-  const slot = targetUser.availableSlots.id(slotId);
-  if (!slot) return res.status(404).json({ message: "Slot not found" });
-
-  if (slot.isBooked) {
-    return res.status(400).json({ message: "Slot already booked" });
+  if (!date || !slotId || !withUserId) {
+    return res.status(400).json({ error: "Date, slotId, and withUserId are required" });
   }
 
+  if (currentUserId.toString() === withUserId) {
+    return res.status(400).json({ error: "Cannot book a slot with yourself" });
+  }
+
+  // Find the global slot to get startTime and endTime
+  const userSlot = await UserSlot.findOne({ date });
+  if (!userSlot) {
+    return res.status(404).json({ error: "No slots found for this date" });
+  }
+
+  const slot = userSlot.slots.id(slotId);
+  if (!slot) {
+    return res.status(404).json({ error: "Slot not found" });
+  }
+
+  // Check if this time is already booked by currentUser or withUser
+  const alreadyBooked = await PairSlot.findOne({
+    date,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    users: { $in: [currentUserId, withUserId] }
+  });
+
+  if (alreadyBooked) {
+    return res.status(400).json({ error: "This slot is already booked for one of the users" });
+  }
+
+  const booked = await PairSlot.create({
+    date,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    users: [currentUserId, withUserId]
+  });
+
+  // Mark the global slot as booked
   slot.isBooked = true;
-  slot.bookedBy = visitorAId;
-  slot.isApproved = false; // waiting for approval
+  slot.bookedBy = currentUserId;
+  await userSlot.save();
 
-  await targetUser.save();
-  res.json({ message: "Slot booked, pending approval", slot });
+  res.status(201).json({ message: "Pair slot booked", data: booked });
 });
 
-exports.approveSlot = expressAsyncHandler(async (req, res) => {
+// GET /bookings/pair-slots/:date/:withUserId
+exports.getAvailablePairSlots = asyncHandler(async (req, res) => {
+  const { date, withUserId } = req.params;
+  const currentUserId = req.user._id;
+
+  if (currentUserId.toString() === withUserId) {
+    return res.status(400).json({ error: "Cannot book a slot with yourself" });
+  }
+
+  const userSlot = await UserSlot.findOne({ date });
+  if (!userSlot) {
+    return res.json([]);
+  }
+
+  // Fetch booked pair slots involving currentUser or withUser
+  const bookedPairSlots = await PairSlot.find({
+    date,
+    users: { $in: [currentUserId, withUserId] }
+  });
+
+  const bookedSet = new Set(
+    bookedPairSlots.map(slot => `${slot.startTime}-${slot.endTime}`)
+  );
+
+  const available = userSlot.slots.filter(slot => {
+    const key = `${slot.startTime}-${slot.endTime}`;
+    return !bookedSet.has(key);
+  });
+
+  res.json(available);
+});
+
+// PATCH /bookings/pair-slots/approve/:slotId
+exports.approvePairSlot = asyncHandler(async (req, res) => {
   const { slotId } = req.params;
-  const userId = req.user._id;
 
-  const user = await slot.findById(userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
+  const pairSlot = await PairSlot.findById(slotId);
+  if (!pairSlot) {
+    return res.status(404).json({ error: "Pair slot not found" });
+  }
 
-  const slot = company.availableSlots.id(slotId);
-  if (!slot) return res.status(404).json({ message: "Slot not found" });
+  // Update the corresponding global slot
+  const userSlot = await UserSlot.findOne({ date: pairSlot.date });
+  if (!userSlot) {
+    return res.status(404).json({ error: "No slots found for this date" });
+  }
 
-  if (!slot.isBooked) {
-    return res.status(400).json({ message: "Cannot approve unbooked slot" });
+  const slot = userSlot.slots.find(s =>
+    s.startTime === pairSlot.startTime && s.endTime === pairSlot.endTime
+  );
+  if (!slot) {
+    return res.status(404).json({ error: "Slot not found" });
   }
 
   slot.isApproved = true;
-  await company.save();
+  pairSlot.isApproved = true;
+  await userSlot.save();
+  await pairSlot.save();
 
-  res.json({ message: "Slot approved", slot });
+  res.json({ message: "Pair slot approved", slot });
 });
-
-
-// Get available slots for a user
-// router.get('/:userId/slots', auth, async (req, res) => {
-exports.getavailableSlots = expressAsyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  const user = await slot.findById(userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
-
-  const slots = company.availableSlots.filter(slot => !slot.isApproved);
-  res.json(slots);
-});
-
-
-module.exports = router;

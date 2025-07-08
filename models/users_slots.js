@@ -1,40 +1,17 @@
 const mongoose = require("mongoose");
 
-let slotSchema = new mongoose.Schema({
-  slot:{
-    type: String,
-    default: ""
-  },
-  isBooked: {
-    type: Boolean,
-    default: false
-  },
-  hasAppointment: {
-    type: Boolean,
-    default: false
-  },
-  isVisible: {
-    type: Boolean,
-    default: true
-  },
-  appointmentWith: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null
-    } 
+const slotSchema = new mongoose.Schema({
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  isBooked: { type: Boolean, default: false },
+  isApproved: { type: Boolean, default: false },
+  bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null },
 });
 
-let schema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    default: null
-  },
-  date: {
-    type: String,
-    default: null
-  },
-  slots:[slotSchema]
-});
+const userSlotSchema = new mongoose.Schema({
+  date: { type: String, required: true, unique: true },
+  slots: [slotSchema],
+}, { timestamps: true });
 
-module.exports = mongoose.model("UserSlots", schema);
+module.exports = mongoose.model("UserSlot", userSlotSchema);
+

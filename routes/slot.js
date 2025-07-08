@@ -1,12 +1,19 @@
 
-const express = require('express');
-const { createScanRecord } = require('../controllers/scanController');
+const express = require("express");
 const router = express.Router();
+const slotController = require("../controllers/bookings");
+const { superAdminAuthToken, companyAuthToken } = require("../middlewares/authenticator");
 
-router.post('/me/slots', auth, setavailableSlots); // company sets own slots
-router.get('/:userId/slots', auth, getavailableSlots); // get slots of any user
-router.post('/:userId/slots/:slotId/book', auth, bookslot); // book a slot
-router.post('/me/slots/:slotId/approve', auth, approveSlot); // approve a booking
+// Super Admin Creates Slots
+router.post('/admin/slots/create', superAdminAuthToken, slotController.createSlots);
 
+// User Books a Pair Slot
+router.post('/pair-slots/book', companyAuthToken, slotController.bookPairSlot);
+
+// Approve Pair Slot
+router.patch('/pair-slots/approve/:slotId', companyAuthToken, slotController.approvePairSlot);
+
+// Get Available Pair Slots
+router.get('/pair-slots/:date/:withUserId', companyAuthToken, slotController.getAvailablePairSlots);
 
 module.exports = router;

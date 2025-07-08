@@ -14,5 +14,9 @@ module.exports = [
   {
     path: "/banner",
     file: require("./banner")
+  },
+  {
+    path: "/slot",
+    file: require("./slot")
   }
 ];

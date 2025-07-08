@@ -1,4 +1,3 @@
-// controllers/scanController.js
 
 const asyncHandler = require("express-async-handler");
 const response = require("../utils/response");

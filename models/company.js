@@ -14,6 +14,10 @@ const companySchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  mobile:{
+    type: Number,
+    required: true
+  },
   state: {
     type: String,
     required: true

@@ -12,10 +12,10 @@ const deleteFile = (filePath) => {
 };
 
 exports.createCompany = asyncHandler(async (req, res) => {
-  const { prefix, name, company, state, city, email, password, category, aboutBusiness, aboutProduct } = req.body;
+  const { prefix, name, company,mobile, state, city, email, password, category, aboutBusiness, aboutProduct } = req.body;
   const profileImage = req.file ? req.file.path : null;
 
-  if(!prefix || !name || !company || !state || !city || !email || !password || !category || !aboutBusiness || !aboutProduct){
+  if(!prefix || !name || !company || !mobile || !state || !city || !email || !password || !category || !aboutBusiness || !aboutProduct){
     if (profileImage) deleteFile(profileImage);
     return response.success("All Fields Are Required",null,res)
   }
@@ -34,6 +34,7 @@ const encryptedPassword = encrypt(password);
       prefix,
       name,
       company,
+      mobile,
       state,
       city,
       email,

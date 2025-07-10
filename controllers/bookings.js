@@ -1,6 +1,7 @@
 const UserSlot = require('../models/users_slots');
 const PairSlot = require('../models/pair_slot');
 const asyncHandler = require("express-async-handler");
+
 function generateTimeSlots() {
   const start = 11 * 60;
   const end = 14 * 60;
@@ -26,12 +27,9 @@ exports.createSlots = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Date is required" });
   }
 
-  // Delete existing slots for this date
   await UserSlot.deleteOne({ date });
 
-  // Create 10-min slots from 11:00 to 14:00
   const slots = generateTimeSlots();
-
   const created = await UserSlot.create({ date, slots });
   res.status(201).json({ message: "Global slots created", data: created });
 });
@@ -49,7 +47,6 @@ exports.bookPairSlot = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Cannot book a slot with yourself" });
   }
 
-  // Find the global slot to get startTime and endTime
   const userSlot = await UserSlot.findOne({ date });
   if (!userSlot) {
     return res.status(404).json({ error: "No slots found for this date" });
@@ -60,7 +57,6 @@ exports.bookPairSlot = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Slot not found" });
   }
 
-  // Check if this time is already booked by currentUser or withUser
   const alreadyBooked = await PairSlot.findOne({
     date,
     startTime: slot.startTime,
@@ -69,22 +65,78 @@ exports.bookPairSlot = asyncHandler(async (req, res) => {
   });
 
   if (alreadyBooked) {
-    return res.status(400).json({ error: "This slot is already booked for one of the users" });
+    return res.status(400).json({ error: "This slot is already booked or pending for one of the users" });
   }
 
   const booked = await PairSlot.create({
     date,
     startTime: slot.startTime,
     endTime: slot.endTime,
-    users: [currentUserId, withUserId]
+    users: [currentUserId, withUserId],
+    isApproved: false,
+    requestedBy: currentUserId
   });
 
-  // Mark the global slot as booked
-  slot.isBooked = true;
-  slot.bookedBy = currentUserId;
-  await userSlot.save();
+  res.status(201).json({ message: "Pair slot request created", data: booked });
+});
 
-  res.status(201).json({ message: "Pair slot booked", data: booked });
+// PATCH /bookings/pair-slots/approve/:slotId
+exports.approvePairSlot = asyncHandler(async (req, res) => {
+  const { slotId } = req.params;
+  const currentUserId = req.user._id;
+
+  const pairSlot = await PairSlot.findById(slotId);
+  if (!pairSlot) {
+    return res.status(404).json({ error: "Pair slot not found" });
+  }
+
+  if (pairSlot.isApproved) {
+    return res.status(400).json({ error: "Slot already approved" });
+  }
+
+  if (!pairSlot.users.includes(currentUserId)) {
+    return res.status(403).json({ error: "Not authorized to approve this slot" });
+  }
+
+  const userSlot = await UserSlot.findOne({ date: pairSlot.date });
+  if (!userSlot) {
+    return res.status(404).json({ error: "No slots found for this date" });
+  }
+
+  const slot = userSlot.slots.find(s =>
+    s.startTime === pairSlot.startTime && s.endTime === pairSlot.endTime
+  );
+  if (!slot) {
+    return res.status(404).json({ error: "Slot not found" });
+  }
+
+  slot.isBooked = true;
+  slot.isApproved = true;
+  slot.bookedBy = currentUserId;
+  pairSlot.isApproved = true;
+
+  await userSlot.save();
+  await pairSlot.save();
+
+  res.json({ message: "Pair slot approved", slot });
+});
+
+// DELETE /bookings/pair-slots/cancel/:slotId
+exports.cancelPairSlot = asyncHandler(async (req, res) => {
+  const { slotId } = req.params;
+  const currentUserId = req.user._id;
+
+  const pairSlot = await PairSlot.findById(slotId);
+  if (!pairSlot) {
+    return res.status(404).json({ error: "Pair slot not found" });
+  }
+
+  if (!pairSlot.users.includes(currentUserId)) {
+    return res.status(403).json({ error: "Not authorized to cancel this slot" });
+  }
+
+  await PairSlot.deleteOne({ _id: slotId });
+  res.json({ message: "Pair slot request cancelled" });
 });
 
 // GET /bookings/pair-slots/:date/:withUserId
@@ -101,7 +153,6 @@ exports.getAvailablePairSlots = asyncHandler(async (req, res) => {
     return res.json([]);
   }
 
-  // Fetch booked pair slots involving currentUser or withUser
   const bookedPairSlots = await PairSlot.find({
     date,
     users: { $in: [currentUserId, withUserId] }
@@ -119,32 +170,78 @@ exports.getAvailablePairSlots = asyncHandler(async (req, res) => {
   res.json(available);
 });
 
-// PATCH /bookings/pair-slots/approve/:slotId
-exports.approvePairSlot = asyncHandler(async (req, res) => {
-  const { slotId } = req.params;
+// GET /pair-slot/booked
+exports.getMyPairBookings = asyncHandler(async (req, res) => {
+  const myId = req.user._id;
+  const slots = await PairSlot.find({ 
+    users: myId,
+    isApproved: true 
+  })
+  .sort({ date: -1, startTime: 1 })
+  .populate("users", "name email company mobile");
 
-  const pairSlot = await PairSlot.findById(slotId);
-  if (!pairSlot) {
-    return res.status(404).json({ error: "Pair slot not found" });
-  }
+  const formattedSlots = slots.map(slot => {
+    const otherUser = slot.users.find(user => user._id.toString() !== myId.toString());
+    return {
+      _id: slot._id,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      otherUser, // Return only the other user
+    };
+  });
 
-  // Update the corresponding global slot
-  const userSlot = await UserSlot.findOne({ date: pairSlot.date });
-  if (!userSlot) {
-    return res.status(404).json({ error: "No slots found for this date" });
-  }
+  res.json(formattedSlots);
+  // res.json(slots);
+});
 
-  const slot = userSlot.slots.find(s =>
-    s.startTime === pairSlot.startTime && s.endTime === pairSlot.endTime
-  );
-  if (!slot) {
-    return res.status(404).json({ error: "Slot not found" });
-  }
+// GET /pair-slot/pending-sent
+exports.getPendingSentRequests = asyncHandler(async (req, res) => {
+  const myId = req.user._id;
+  const slots = await PairSlot.find({ 
+    requestedBy: myId,
+    isApproved: false 
+  })
+  .sort({ date: -1, startTime: 1 })
+  .populate("users", "name email company mobile");
 
-  slot.isApproved = true;
-  pairSlot.isApproved = true;
-  await userSlot.save();
-  await pairSlot.save();
+    const formattedSlots = slots.map(slot => {
+    const otherUser = slot.users.find(user => user._id.toString() !== myId.toString());
+    return {
+      _id: slot._id,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      otherUser, // Return only the other user
+    };
+  });
 
-  res.json({ message: "Pair slot approved", slot });
+  res.json(formattedSlots);
+
+});
+
+// GET /pair-slot/pending-received
+exports.getPendingReceivedRequests = asyncHandler(async (req, res) => {
+  const myId = req.user._id;
+  const slots = await PairSlot.find({ 
+    users: myId,
+    isApproved: false,
+    requestedBy: { $ne: myId }
+  })
+  .sort({ date: -1, startTime: 1 })
+  .populate("users", "name email company mobile");
+
+  const formattedSlots = slots.map(slot => {
+    const otherUser = slot.users.find(user => user._id.toString() !== myId.toString());
+    return {
+      _id: slot._id,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      otherUser, // Return only the other user
+    };
+  });
+
+  res.json(formattedSlots);
+  // res.json(slots);
 });

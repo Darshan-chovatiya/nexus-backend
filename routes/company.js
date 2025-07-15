@@ -29,4 +29,8 @@ router.get("/user/public/:id", companyController.getCompanyPublic);
 router.put("/change-password/:id", companyAuthToken, companyController.UpdateCompanyPassword);
 
 
+router.delete("/my/delete/:id", companyAuthToken, companyController.deleteCompany);
+
+
+
 module.exports = router;

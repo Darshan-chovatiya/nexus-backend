@@ -44,10 +44,6 @@ exports.getScannerDetails = asyncHandler(async (req, res) => {
     .find({ scanId: myCompanyId })
     .populate('scannerId', 'name email company mobile'); // You can include more fields if needed
 
-  if (!scanRecords || scanRecords.length === 0) {
-    return response.notFound("No one has scanned you yet.", res);
-  }
-
   return response.success("Scanners found.", scanRecords, res);
 });
 

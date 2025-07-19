@@ -2,16 +2,22 @@ const UserSlot = require('../models/users_slots');
 const PairSlot = require('../models/pair_slot');
 const asyncHandler = require("express-async-handler");
 
-function generateTimeSlots() {
-  const start = 11 * 60;
-  const end = 14 * 60;
+function generateTimeSlots(startTime, endTime, duration) {
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
   const slots = [];
 
-  for (let i = start; i < end; i += 10) {
+  if (start >= end) {
+    throw new Error("Start time must be earlier than end time");
+  }
+
+  for (let i = start; i < end; i += duration) {
     const h1 = String(Math.floor(i / 60)).padStart(2, '0');
     const m1 = String(i % 60).padStart(2, '0');
-    const h2 = String(Math.floor((i + 10) / 60)).padStart(2, '0');
-    const m2 = String((i + 10) % 60).padStart(2, '0');
+    const h2 = String(Math.floor((i + duration) / 60)).padStart(2, '0');
+    const m2 = String((i + duration) % 60).padStart(2, '0');
 
     slots.push({ startTime: `${h1}:${m1}`, endTime: `${h2}:${m2}` });
   }
@@ -21,17 +27,33 @@ function generateTimeSlots() {
 
 // POST /admin/slots/create
 exports.createSlots = asyncHandler(async (req, res) => {
-  const { date } = req.body;
+  const { date, startTime, endTime, duration } = req.body;
 
-  if (!date) {
-    return res.status(400).json({ error: "Date is required" });
+  if (!date || !startTime || !endTime || !duration) {
+    return res.status(400).json({ error: "All fields are required" });
   }
 
-  await UserSlot.deleteOne({ date });
+  // Validate time format (HH:MM)
+  const timeFormatRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+  if (!timeFormatRegex.test(startTime) || !timeFormatRegex.test(endTime)) {
+    return res.status(400).json({ error: "Invalid time format. Use HH:MM" });
+  }
 
-  const slots = generateTimeSlots();
-  const created = await UserSlot.create({ date, slots });
-  res.status(201).json({ message: "Global slots created", data: created });
+  // Validate duration
+  const validDurations = [10, 20, 30, 40, 50, 60];
+  const durationNum = parseInt(duration);
+  if (!validDurations.includes(durationNum)) {
+    return res.status(400).json({ error: "Duration must be one of 10, 20, 30, 40, 50, or 60 minutes" });
+  }
+
+  try {
+    const slots = generateTimeSlots(startTime, endTime, durationNum);
+    await UserSlot.deleteOne({ date });
+    const created = await UserSlot.create({ date, slots });
+    res.status(201).json({ message: "Global slots created", data: created });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 });
 
 // POST /bookings/pair-slots/book

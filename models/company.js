@@ -50,7 +50,6 @@ const companySchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Pure B2B', 'Pure B2C', 'B2B + B2C'],
     required: true
   },
   isActive: {

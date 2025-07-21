@@ -42,9 +42,19 @@ exports.getScannerDetails = asyncHandler(async (req, res) => {
   // Find all scan records where I was scanned, and populate scannerId with company data
   const scanRecords = await scanrecord
     .find({ scanId: myCompanyId })
-    .populate('scannerId', 'name email company mobile'); // You can include more fields if needed
+    .populate('scannerId', '-password -isActive'); // You can include more fields if needed
 
   return response.success("Scanners found.", scanRecords, res);
 });
 
 
+exports.getScanDetails = asyncHandler(async (req, res) => {
+  const myCompanyId = req.user._id;
+
+  // Find all scan records where I was scanned, and populate scannerId with company data
+  const scanRecords = await scanrecord
+    .find({ scannerId: myCompanyId })
+    .populate('scanId', '-password -isActive'); // You can include more fields if needed
+
+  return response.success("Scanners found.", scanRecords, res);
+});

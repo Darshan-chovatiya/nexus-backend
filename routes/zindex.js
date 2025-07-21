@@ -18,5 +18,9 @@ module.exports = [
   {
     path: "/slot",
     file: require("./slot")
+  },
+  {
+    path: "/category",
+    file: require("./category")
   }
 ];

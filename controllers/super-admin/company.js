@@ -19,9 +19,9 @@ exports.createCompany = asyncHandler(async (req, res) => {
     if (profileImage) deleteFile(profileImage);
     return response.success("All Fields Are Required",null,res)
   }
-  if(!profileImage){
-    return response.success("profileImage image is Required",null,res)
-  }
+  // if(!profileImage){
+  //   return response.success("profileImage image is Required",null,res)
+  // }
 
   const exists = await Company.findOne({ email });
   if (exists) {
@@ -39,7 +39,7 @@ const encryptedPassword = encrypt(password);
       city,
       email,
       password:encryptedPassword,
-      profileImage,
+      profileImage:profileImage || "",
       category,
       aboutBusiness,
       aboutProduct,

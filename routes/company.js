@@ -4,6 +4,7 @@ const companyController = require("../controllers/super-admin/company");
 const {superAdminAuthToken, companyAuthToken} = require("../middlewares/authenticator");
 const upload = require("../utils/upload");
 const { signInCompany, verifyCompany, companySlugInfo } = require("../controllers/company-admin/company-auth");
+const { getStates, getCitiesByStates } = require("../controllers/stateAndCities");
 
 router.post("/login" , signInCompany)
 router.get("/verify-company", companyAuthToken, verifyCompany);
@@ -31,6 +32,7 @@ router.put("/change-password/:id", companyAuthToken, companyController.UpdateCom
 
 router.delete("/my/delete/:id", companyAuthToken, companyController.deleteCompany);
 
-
+router.get("/states",getStates)
+router.post("/cities-by-state",getCitiesByStates);
 
 module.exports = router;

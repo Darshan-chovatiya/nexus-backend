@@ -1,6 +1,8 @@
 const UserSlot = require('../models/users_slots');
 const PairSlot = require('../models/pair_slot');
 const asyncHandler = require("express-async-handler");
+const {sendNotification} = require('../utils/notificationhelper');
+const company = require('../models/company');
 
 function generateTimeSlots(startTime, endTime, duration) {
   const [startHour, startMinute] = startTime.split(':').map(Number);
@@ -99,6 +101,19 @@ exports.bookPairSlot = asyncHandler(async (req, res) => {
     requestedBy: currentUserId
   });
 
+  // Fetch users for notification
+  const currentUser = await company.findById(currentUserId);
+  const withUser = await company.findById(withUserId);
+
+  // Send notification to the other user (withUserId)
+  if (withUser && withUser.fcmToken) {
+    await sendNotification(withUser.fcmToken, [
+      'Pair Slot Request',
+      `${currentUser.name || 'A user'} has requested to book a pair slot with you on ${date} from ${slot.startTime} to ${slot.endTime}`,
+      { event: 'PairSlotRequested', slotId: booked._id.toString() }
+    ]);
+  }
+
   res.status(201).json({ message: "Pair slot request created", data: booked });
 });
 
@@ -140,6 +155,20 @@ exports.approvePairSlot = asyncHandler(async (req, res) => {
   await userSlot.save();
   await pairSlot.save();
 
+  // Fetch users for notification
+  const currentUser = await company.findById(currentUserId);
+  const otherUserId = pairSlot.users.find(id => id.toString() !== currentUserId.toString());
+  const otherUser = await company.findById(otherUserId);
+
+  // Send notification to the other user
+  if (otherUser && otherUser.fcmToken) {
+    await sendNotification(otherUser.fcmToken, [
+      'Pair Slot Approved',
+      `${currentUser.name || 'A user'} has approved the pair slot on ${pairSlot.date} from ${pairSlot.startTime} to ${pairSlot.endTime}`,
+      { event: 'PairSlotApproved', slotId: pairSlot._id.toString() }
+    ]);
+  }
+
   res.json({ message: "Pair slot approved", slot });
 });
 
@@ -157,7 +186,21 @@ exports.cancelPairSlot = asyncHandler(async (req, res) => {
     return res.status(403).json({ error: "Not authorized to cancel this slot" });
   }
 
+  // Fetch users for notification
+  const currentUser = await company.findById(currentUserId);
+  const otherUserId = pairSlot.users.find(id => id.toString() !== currentUserId.toString());
+  const otherUser = await company.findById(otherUserId);
+
   await PairSlot.deleteOne({ _id: slotId });
+
+  // Send notification to the other user
+  if (otherUser && otherUser.fcmToken) {
+    await sendNotification(otherUser.fcmToken, [
+      'Pair Slot Cancelled',
+      `${currentUser.name || 'A user'} has cancelled the pair slot on ${pairSlot.date} from ${pairSlot.startTime} to ${pairSlot.endTime}`,
+      { event: 'PairSlotCancelled', slotId }
+    ]);
+  }
   res.json({ message: "Pair slot request cancelled" });
 });
 

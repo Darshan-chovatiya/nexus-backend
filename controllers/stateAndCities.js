@@ -6,16 +6,13 @@ const { default: mongoose } = require("mongoose");
 
 exports.getCitiesByStates = async (req, res) => {
     try {
-        const { stateId } = req.body;
+        const { name } = req.body;
         // Check if stateId is provided and valid
-        if (!stateId || !mongoose.Types.ObjectId.isValid(stateId)) {
-            return response.success("Valid stateId is required!", null, res);
-        }
-        // Verify if the state exists
-        const StateExists = await states.findOne({ _id: stateId });
-        if (!StateExists) {
+              const stateExists = await states.findOne({name}).select('_id');
+        if (!stateExists) {
             return response.success("State not found or is deleted!", null, res);
         }
+        const stateId = stateExists._id;
         // Fetch cities for the given stateId, excluding deleted ones
         const Cities = await cities
             .find({ stateId })

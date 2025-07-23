@@ -33,6 +33,21 @@ exports.signInCompany = asyncHandler(async (req, res) => {
   return response.success("Company login successfully!", { token, company }, res);
 });
 
+exports.updateDeviceInfo = asyncHandler(async (req, res) => {
+  const { fcmToken, deviceId } = req.body; 
+  const userId = req.token.id;
+  if (!fcmToken || !deviceId) {
+    return response.forbidden("All fields are required", res);
+  }
+  const company = await models.company.findById(userId);
+  if (!company) {
+    return response.success("Company not found!", null, res);
+  }
+  company.fcmToken = fcmToken;
+  company.deviceId = deviceId;
+  await company.save();
+  return response.success("Device info updated successfully!", company, res);
+});
 
 
 exports.verifyCompany = asyncHandler(async (req, res) => {

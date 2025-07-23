@@ -12,7 +12,7 @@ const deleteFile = (filePath) => {
 };
 
 exports.createCompany = asyncHandler(async (req, res) => {
-  const { prefix, name, company,mobile, state, city, email, password, category, aboutBusiness, aboutProduct } = req.body;
+  const { prefix, name, company,mobile, state, city, email, password, category, aboutBusiness, aboutProduct ,fcmToken,deviceId} = req.body;
   const profileImage = req.file ? req.file.path : null;
 
   if(!prefix || !name || !company || !mobile || !state || !city || !email || !password || !category || !aboutBusiness || !aboutProduct){
@@ -43,6 +43,8 @@ const encryptedPassword = encrypt(password);
       category,
       aboutBusiness,
       aboutProduct,
+      fcmToken: fcmToken || '',
+      deviceId: deviceId || '',
       isActive:false
   });
   return response.success("Company created successfully", user, res);

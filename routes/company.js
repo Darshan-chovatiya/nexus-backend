@@ -3,11 +3,12 @@ const router = express.Router();
 const companyController = require("../controllers/super-admin/company");
 const {superAdminAuthToken, companyAuthToken} = require("../middlewares/authenticator");
 const upload = require("../utils/upload");
-const { signInCompany, verifyCompany, companySlugInfo } = require("../controllers/company-admin/company-auth");
+const { signInCompany, verifyCompany, companySlugInfo, updateDeviceInfo } = require("../controllers/company-admin/company-auth");
 const { getStates, getCitiesByStates } = require("../controllers/stateAndCities");
 
 router.post("/login" , signInCompany)
 router.get("/verify-company", companyAuthToken, verifyCompany);
+router.put("/update-device-info", companyAuthToken, updateDeviceInfo);
 router.get("/slug-info/:slug",companySlugInfo)
 
 router.get("/company-info/:companyId",companyController.companyInfoVisit)

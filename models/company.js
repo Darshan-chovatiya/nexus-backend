@@ -56,6 +56,14 @@ const companySchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  fcmToken: {
+    type: String,
+    default: ''
+  },
+  deviceId: {
+    type: String,
+    default: ''
+  },
   availableSlots: [{
     date: Date,
     startTime: String, // Format: "HH:MM"

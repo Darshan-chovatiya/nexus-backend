@@ -1,5 +1,7 @@
 const firebase = require('../config/firebase');
+
 const notification = firebase.notification();
+
 exports.sendNotification = async (Token, messages) => {
   //messages is an array which has title and body
   let message = {
@@ -8,7 +10,7 @@ exports.sendNotification = async (Token, messages) => {
       title: messages[0],
       body: messages[1]
     },
-    data: messages[2] ? messages[2] : {}
+    data: {}
   };
   let result = {};
   try {
@@ -19,6 +21,7 @@ exports.sendNotification = async (Token, messages) => {
   } catch (error) {
     result.message = 'oops! cannot send';
     result.error = error;
+    console.log("Error sending notification:", error);
     return result;
   }
 };

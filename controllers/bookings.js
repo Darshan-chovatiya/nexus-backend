@@ -107,6 +107,7 @@ exports.bookPairSlot = asyncHandler(async (req, res) => {
 
   // Send notification to the other user (withUserId)
   if (withUser && withUser.fcmToken) {
+    console.log("Sending notification to:", withUser.fcmToken);
     await sendNotification(withUser.fcmToken, [
       'Pair Slot Request',
       `${currentUser.name || 'A user'} has requested to book a pair slot with you on ${date} from ${slot.startTime} to ${slot.endTime}`,
